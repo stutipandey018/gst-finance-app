@@ -305,7 +305,7 @@ function TDSTracker({ userId }) {
       {activeTab === 'sections' && (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           {bySection.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">Koi entries nahi hain abhi.</div>
+            <div className="p-8 text-center text-gray-400">No entries yet.</div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">

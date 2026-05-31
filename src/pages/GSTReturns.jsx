@@ -26,51 +26,24 @@ function GSTReturns({ invoices = [], expenses = [] }) {
   })
   const [manualOverride, setManualOverride] = useState(false)
   const [form, setForm] = useState({
-    totalSales: '',
-    taxableSales: '',
-    cgstCollected: '',
-    sgstCollected: '',
-    igstCollected: '',
-    cgstPaid: '',
-    sgstPaid: '',
-    igstPaid: '',
+    totalSales: '', taxableSales: '',
+    cgstCollected: '', sgstCollected: '', igstCollected: '',
+    cgstPaid: '', sgstPaid: '', igstPaid: '',
   })
 
-  // Auto calculate from invoices for selected month
   const getAutoData = (month) => {
     const monthNum = MONTH_MAP[month]
-    const monthInvoices = invoices.filter(inv => {
-      const d = new Date(inv.date)
-      return d.getMonth() === monthNum
-    })
-    const monthExpenses = expenses.filter(exp => {
-      const d = new Date(exp.date)
-      return d.getMonth() === monthNum
-    })
-
-    const totalSales = monthInvoices.reduce((sum, inv) =>
-      sum + (parseFloat(inv.grand_total || inv.grandTotal) || 0), 0)
-    const taxableSales = monthInvoices.reduce((sum, inv) =>
-      sum + (parseFloat(inv.subtotal) || 0), 0)
-    const cgstCollected = monthInvoices.reduce((sum, inv) =>
-      sum + (parseFloat(inv.total_cgst || inv.totalCGST) || 0), 0)
-    const sgstCollected = monthInvoices.reduce((sum, inv) =>
-      sum + (parseFloat(inv.total_sgst || inv.totalSGST) || 0), 0)
-    const igstCollected = monthInvoices.reduce((sum, inv) =>
-      sum + (parseFloat(inv.total_igst || inv.totalIGST) || 0), 0)
-    const cgstPaid = monthExpenses.reduce((sum, exp) =>
-      sum + (parseFloat(exp.gst_paid || exp.gstPaid) || 0) / 2, 0)
-    const sgstPaid = monthExpenses.reduce((sum, exp) =>
-      sum + (parseFloat(exp.gst_paid || exp.gstPaid) || 0) / 2, 0)
+    const monthInvoices = invoices.filter(inv => new Date(inv.date).getMonth() === monthNum)
+    const monthExpenses = expenses.filter(exp => new Date(exp.date).getMonth() === monthNum)
 
     return {
-      totalSales: totalSales.toFixed(2),
-      taxableSales: taxableSales.toFixed(2),
-      cgstCollected: cgstCollected.toFixed(2),
-      sgstCollected: sgstCollected.toFixed(2),
-      igstCollected: igstCollected.toFixed(2),
-      cgstPaid: cgstPaid.toFixed(2),
-      sgstPaid: sgstPaid.toFixed(2),
+      totalSales: monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.grand_total || inv.grandTotal) || 0), 0).toFixed(2),
+      taxableSales: monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.subtotal) || 0), 0).toFixed(2),
+      cgstCollected: monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_cgst || inv.totalCGST) || 0), 0).toFixed(2),
+      sgstCollected: monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_sgst || inv.totalSGST) || 0), 0).toFixed(2),
+      igstCollected: monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_igst || inv.totalIGST) || 0), 0).toFixed(2),
+      cgstPaid: (monthExpenses.reduce((sum, exp) => sum + (parseFloat(exp.gst_paid || exp.gstPaid) || 0), 0) / 2).toFixed(2),
+      sgstPaid: (monthExpenses.reduce((sum, exp) => sum + (parseFloat(exp.gst_paid || exp.gstPaid) || 0), 0) / 2).toFixed(2),
       igstPaid: '0.00',
       invoiceCount: monthInvoices.length,
       expenseCount: monthExpenses.length,
@@ -89,21 +62,14 @@ function GSTReturns({ invoices = [], expenses = [] }) {
     const igstPaid = parseFloat(activeForm.igstPaid) || 0
     const totalCollected = cgstCollected + sgstCollected + igstCollected
     const totalITC = cgstPaid + sgstPaid + igstPaid
-    const netPayable = Math.max(0, totalCollected - totalITC)
-    return { totalCollected, totalITC, netPayable }
+    return { totalCollected, totalITC, netPayable: Math.max(0, totalCollected - totalITC) }
   }
 
   const saveReturn = () => {
     const liability = calculateLiability()
     const updated = {
       ...returns,
-      [selectedMonth]: {
-        ...activeForm,
-        ...liability,
-        status: 'Saved',
-        month: selectedMonth,
-        savedAt: new Date().toISOString()
-      }
+      [selectedMonth]: { ...activeForm, ...liability, status: 'Saved', month: selectedMonth }
     }
     setReturns(updated)
     localStorage.setItem('gst_returns', JSON.stringify(updated))
@@ -111,10 +77,7 @@ function GSTReturns({ invoices = [], expenses = [] }) {
   }
 
   const markFiled = (month) => {
-    const updated = {
-      ...returns,
-      [month]: { ...returns[month], status: 'Filed' }
-    }
+    const updated = { ...returns, [month]: { ...returns[month], status: 'Filed' } }
     setReturns(updated)
     localStorage.setItem('gst_returns', JSON.stringify(updated))
   }
@@ -123,15 +86,8 @@ function GSTReturns({ invoices = [], expenses = [] }) {
     setSelectedMonth(month)
     setManualOverride(false)
     const existing = returns[month]
-    if (existing) {
-      setForm(existing)
-    } else {
-      setForm({
-        totalSales: '', taxableSales: '',
-        cgstCollected: '', sgstCollected: '', igstCollected: '',
-        cgstPaid: '', sgstPaid: '', igstPaid: '',
-      })
-    }
+    if (existing) setForm(existing)
+    else setForm({ totalSales: '', taxableSales: '', cgstCollected: '', sgstCollected: '', igstCollected: '', cgstPaid: '', sgstPaid: '', igstPaid: '' })
   }
 
   const liability = calculateLiability()
@@ -141,7 +97,7 @@ function GSTReturns({ invoices = [], expenses = [] }) {
     <div>
       <h2 className="text-2xl font-bold text-gray-800 mb-6">GST Returns</h2>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {Object.entries(FILING_DEADLINES).map(([type, deadline]) => (
           <div key={type} className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-blue-500">
             <p className="font-semibold text-gray-800">{type}</p>
@@ -150,9 +106,9 @@ function GSTReturns({ invoices = [], expenses = [] }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 bg-white rounded-xl p-6 shadow-sm">
+          <div className="flex flex-wrap items-center gap-4 mb-4">
             <h3 className="font-semibold text-gray-700">Monthly Return</h3>
             <select className="border rounded-lg px-3 py-2 text-sm"
               value={selectedMonth} onChange={e => handleMonthChange(e.target.value)}>
@@ -165,33 +121,25 @@ function GSTReturns({ invoices = [], expenses = [] }) {
             )}
           </div>
 
-          {/* Auto data info box */}
-          <div className={`rounded-lg p-3 mb-4 text-sm flex items-center justify-between ${
+          <div className={`rounded-lg p-3 mb-4 text-sm flex flex-wrap items-center justify-between gap-2 ${
             manualOverride ? 'bg-orange-50 border border-orange-200' : 'bg-blue-50 border border-blue-200'
           }`}>
-            <div>
-              {manualOverride ? (
-                <p className="text-orange-700">✏️ Manual mode — apne numbers daalo</p>
-              ) : (
-                <p className="text-blue-700">
-                  ⚡ Auto mode — <strong>{autoData.invoiceCount} invoices</strong> aur <strong>{autoData.expenseCount} expenses</strong> se {selectedMonth} ka data fill hua
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => setManualOverride(!manualOverride)}
+            <p className={manualOverride ? 'text-orange-700' : 'text-blue-700'}>
+              {manualOverride
+                ? '✏️ Manual mode — enter your numbers'
+                : `⚡ Auto mode — ${autoData.invoiceCount} invoices and ${autoData.expenseCount} expenses auto-filled for ${selectedMonth}`}
+            </p>
+            <button onClick={() => setManualOverride(!manualOverride)}
               className={`text-xs px-3 py-1 rounded-lg ${
-                manualOverride
-                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                manualOverride ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
               }`}>
-              {manualOverride ? '⚡ Auto use karo' : '✏️ Manual edit karo'}
+              {manualOverride ? '⚡ Use Auto' : '✏️ Edit Manually'}
             </button>
           </div>
 
           <div className="mb-4">
             <h4 className="text-sm font-medium text-gray-600 mb-3 uppercase tracking-wide">Sales Details</h4>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm text-gray-500 block mb-1">Total Sales (₹)</label>
                 <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm bg-blue-50"
@@ -252,7 +200,7 @@ function GSTReturns({ invoices = [], expenses = [] }) {
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button onClick={saveReturn}
               className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
               Save Return
@@ -283,13 +231,10 @@ function GSTReturns({ invoices = [], expenses = [] }) {
                   {r ? (
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-1 rounded-full ${
-                        r.status === 'Filed'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-yellow-100 text-yellow-700'
+                        r.status === 'Filed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                       }`}>{r.status}</span>
                       {r.status !== 'Filed' && (
-                        <button onClick={() => markFiled(month)}
-                          className="text-xs text-blue-600 hover:underline">Filed</button>
+                        <button onClick={() => markFiled(month)} className="text-xs text-blue-600 hover:underline">Filed</button>
                       )}
                     </div>
                   ) : (
@@ -303,12 +248,12 @@ function GSTReturns({ invoices = [], expenses = [] }) {
           </div>
 
           <div className="mt-4 bg-amber-50 rounded-lg p-3 text-xs text-amber-800">
-            <p className="font-semibold mb-1">Actual filing kaise karein?</p>
-            <p>1. Yahan Save Return karo</p>
-            <p>2. gst.gov.in pe jao</p>
-            <p>3. Login karo GSTIN se</p>
-            <p>4. Returns → GSTR-1/3B</p>
-            <p>5. Yahan ke numbers wahan bharo</p>
+            <p className="font-semibold mb-1">How to file actual return?</p>
+            <p>1. Save return here</p>
+            <p>2. Go to gst.gov.in</p>
+            <p>3. Login with your GSTIN</p>
+            <p>4. Go to Returns → GSTR-1/3B</p>
+            <p>5. Enter these numbers there</p>
           </div>
         </div>
       </div>

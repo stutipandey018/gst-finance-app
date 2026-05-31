@@ -70,7 +70,7 @@ function HSNLookup() {
 
         {query.length >= 2 && results.length === 0 && (
           <p className="mt-3 text-gray-400 text-sm text-center py-4">
-            Koi result nahi mila. Dusra keyword try karo.
+            No results found. Try a different keyword.
           </p>
         )}
       </div>

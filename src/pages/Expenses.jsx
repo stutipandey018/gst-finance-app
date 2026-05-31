@@ -55,7 +55,7 @@ function Expenses({ expenses, setExpenses, userId }) {
   }
 
   const deleteExpense = async (id) => {
-    if (!confirm('Yeh expense delete karna chahte ho?')) return
+    if (!confirm('You want delete this expense?')) return
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (!error) setExpenses(prev => prev.filter(e => e.id !== id))
   }

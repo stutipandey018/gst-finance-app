@@ -14,7 +14,7 @@ function Dashboard({ invoices = [], expenses = [] }) {
     <div>
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard</h2>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Total Sales', value: formatCurrency(totalSales), color: 'bg-blue-500' },
           { label: 'GST Collected', value: formatCurrency(totalGST), color: 'bg-green-500' },
@@ -24,19 +24,19 @@ function Dashboard({ invoices = [], expenses = [] }) {
           <div key={card.label} className="bg-white rounded-xl p-5 shadow-sm">
             <div className={`w-10 h-10 ${card.color} rounded-lg mb-3`}></div>
             <p className="text-gray-500 text-sm">{card.label}</p>
-            <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+            <p className="text-xl font-bold text-gray-800">{card.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-gray-700">Recent Invoices</h3>
             <Link to="/invoices" className="text-blue-600 text-sm hover:underline">View all</Link>
           </div>
           {recentInvoices.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-4">Koi invoice nahi. Banao pehla invoice!</p>
+            <p className="text-gray-400 text-sm text-center py-4">No invoices yet. Create your first invoice!</p>
           ) : (
             <div className="space-y-3">
               {recentInvoices.map(inv => (
@@ -61,7 +61,7 @@ function Dashboard({ invoices = [], expenses = [] }) {
             <Link to="/expenses" className="text-blue-600 text-sm hover:underline">View all</Link>
           </div>
           {recentExpenses.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-4">Koi expense nahi. Add karo pehla!</p>
+            <p className="text-gray-400 text-sm text-center py-4">No expenses yet. Add your first expense!</p>
           ) : (
             <div className="space-y-3">
               {recentExpenses.map(exp => (
@@ -83,7 +83,7 @@ function Dashboard({ invoices = [], expenses = [] }) {
 
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <h3 className="font-semibold text-gray-700 mb-4">Quick Links</h3>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { to: '/invoices', icon: '🧾', label: 'New Invoice' },
             { to: '/expenses', icon: '💰', label: 'Add Expense' },

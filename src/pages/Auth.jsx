@@ -15,7 +15,7 @@ function Auth() {
     setMessage('')
 
     if (!email || !password) {
-      setError('Email aur password dono bharo')
+      setError('Please enter email and password')
       setLoading(false)
       return
     }
@@ -26,7 +26,7 @@ function Auth() {
     } else {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) setError(error.message)
-      else setMessage('Account ban gaya! Email check karo aur verify karo, phir login karo.')
+      else setMessage('Account created! You can now login directly.')
     }
     setLoading(false)
   }
@@ -44,56 +44,43 @@ function Auth() {
             onClick={() => { setIsLogin(true); setError(''); setMessage('') }}
             className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
               isLogin ? 'bg-white text-blue-700 shadow' : 'text-gray-500'
-            }`}
-          >Login</button>
+            }`}>Login</button>
           <button
             onClick={() => { setIsLogin(false); setError(''); setMessage('') }}
             className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
               !isLogin ? 'bg-white text-blue-700 shadow' : 'text-gray-500'
-            }`}
-          >Sign Up</button>
+            }`}>Sign Up</button>
         </div>
 
         <div className="space-y-4">
           <div>
             <label className="text-sm text-gray-600 block mb-1">Email</label>
-            <input
-              type="email"
+            <input type="email"
               className="w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-              placeholder="apna@email.com"
+              placeholder="your@email.com"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            />
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
           </div>
           <div>
             <label className="text-sm text-gray-600 block mb-1">Password</label>
-            <input
-              type="password"
+            <input type="password"
               className="w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
               placeholder="••••••••"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            />
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{error}</div>
           )}
           {message && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
-              {message}
-            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">{message}</div>
           )}
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
+          <button onClick={handleSubmit} disabled={loading}
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50">
             {loading ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
           </button>
         </div>
