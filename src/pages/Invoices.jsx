@@ -19,6 +19,9 @@ function Invoices({ invoices, setInvoices, userId }) {
   const [showForm, setShowForm] = useState(false)
   const [pdfInvoice, setPdfInvoice] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filterMonth, setFilterMonth] = useState('All')
+  const [sortBy, setSortBy] = useState('newest')
   const profile = JSON.parse(localStorage.getItem('gst_profile') || '{}')
 
   const updateItem = (index, field, value) => {
@@ -27,9 +30,7 @@ function Invoices({ invoices, setInvoices, userId }) {
     setForm({ ...form, items: updated })
   }
 
-  const addItem = () => {
-    setForm({ ...form, items: [...form.items, { ...emptyItem }] })
-  }
+  const addItem = () => setForm({ ...form, items: [...form.items, { ...emptyItem }] })
 
   const removeItem = (index) => {
     if (form.items.length === 1) return
@@ -40,11 +41,10 @@ function Invoices({ invoices, setInvoices, userId }) {
 
   const saveInvoice = async () => {
     if (!form.invoiceNo || !form.customerName) {
-      alert('Invoice No aur Customer Name bharo')
+      alert('Please fill Invoice No and Customer Name')
       return
     }
     setLoading(true)
-
     const invoiceData = {
       user_id: userId,
       invoice_no: form.invoiceNo,
@@ -60,30 +60,39 @@ function Invoices({ invoices, setInvoices, userId }) {
       total_gst: totals.totalGST,
       grand_total: totals.grandTotal,
     }
-
-    const { data, error } = await supabase
-      .from('invoices')
-      .insert([invoiceData])
-      .select()
-
-    if (error) {
-      alert('Error: ' + error.message)
-    } else {
-      setInvoices(prev => [data[0], ...prev])
-      setForm(emptyInvoice)
-      setShowForm(false)
-    }
+    const { data, error } = await supabase.from('invoices').insert([invoiceData]).select()
+    if (error) alert('Error: ' + error.message)
+    else { setInvoices(prev => [data[0], ...prev]); setForm(emptyInvoice); setShowForm(false) }
     setLoading(false)
   }
 
   const deleteInvoice = async (id) => {
-    if (!confirm('Yeh invoice delete karna chahte ho?')) return
+    if (!confirm('Delete this invoice?')) return
     const { error } = await supabase.from('invoices').delete().eq('id', id)
     if (!error) setInvoices(prev => prev.filter(inv => inv.id !== id))
   }
 
-  // Helper for both old and new field names
   const getField = (inv, newName, oldName) => inv[newName] ?? inv[oldName] ?? 0
+
+  // Search & Filter logic
+  const months = ['All', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December']
+
+  let filtered = invoices.filter(inv => {
+    const name = (inv.customer_name || inv.customerName || '').toLowerCase()
+    const no = (inv.invoice_no || inv.invoiceNo || '').toLowerCase()
+    const matchSearch = name.includes(search.toLowerCase()) || no.includes(search.toLowerCase())
+    const matchMonth = filterMonth === 'All' || new Date(inv.date).toLocaleString('en', { month: 'long' }) === filterMonth
+    return matchSearch && matchMonth
+  })
+
+  if (sortBy === 'newest') filtered = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date))
+  else if (sortBy === 'oldest') filtered = [...filtered].sort((a, b) => new Date(a.date) - new Date(b.date))
+  else if (sortBy === 'highest') filtered = [...filtered].sort((a, b) => (b.grand_total || b.grandTotal) - (a.grand_total || a.grandTotal))
+  else if (sortBy === 'lowest') filtered = [...filtered].sort((a, b) => (a.grand_total || a.grandTotal) - (b.grand_total || b.grandTotal))
+
+  const totalFiltered = filtered.reduce((sum, inv) => sum + (parseFloat(inv.grand_total || inv.grandTotal) || 0), 0)
+  const totalGSTFiltered = filtered.reduce((sum, inv) => sum + (parseFloat(inv.total_gst || inv.totalGST) || 0), 0)
 
   return (
     <div>
@@ -98,7 +107,7 @@ function Invoices({ invoices, setInvoices, userId }) {
       {showForm && (
         <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
           <h3 className="text-lg font-semibold mb-4 text-gray-700">Create Invoice</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-sm text-gray-600 block mb-1">Invoice No *</label>
               <input className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -108,8 +117,7 @@ function Invoices({ invoices, setInvoices, userId }) {
             <div>
               <label className="text-sm text-gray-600 block mb-1">Date</label>
               <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={form.date}
-                onChange={e => setForm({ ...form, date: e.target.value })} />
+                value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
             </div>
             <div>
               <label className="text-sm text-gray-600 block mb-1">Customer Name *</label>
@@ -144,8 +152,7 @@ function Invoices({ invoices, setInvoices, userId }) {
                   placeholder="Amount (₹)" value={item.amount}
                   onChange={e => updateItem(i, 'amount', e.target.value)} />
                 <select className="col-span-3 border rounded-lg px-3 py-2 text-sm"
-                  value={item.gstRate}
-                  onChange={e => updateItem(i, 'gstRate', e.target.value)}>
+                  value={item.gstRate} onChange={e => updateItem(i, 'gstRate', e.target.value)}>
                   {GST_RATES.map(r => <option key={r} value={r}>GST {r}%</option>)}
                 </select>
                 <button onClick={() => removeItem(i)}
@@ -193,64 +200,96 @@ function Invoices({ invoices, setInvoices, userId }) {
         </div>
       )}
 
+      {/* Search & Filter Bar */}
+      <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="md:col-span-2">
+            <input
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+              placeholder="🔍 Search by customer name or invoice no..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div>
+            <select className="w-full border rounded-lg px-3 py-2 text-sm"
+              value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+              {months.map(m => <option key={m}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <select className="w-full border rounded-lg px-3 py-2 text-sm"
+              value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="highest">Highest Amount</option>
+              <option value="lowest">Lowest Amount</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Summary row */}
+        <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
+          <span>Showing <strong>{filtered.length}</strong> of {invoices.length} invoices</span>
+          <span>Total: <strong className="text-blue-600">{formatCurrency(totalFiltered)}</strong></span>
+          <span>GST: <strong className="text-green-600">{formatCurrency(totalGSTFiltered)}</strong></span>
+          {(search || filterMonth !== 'All') && (
+            <button onClick={() => { setSearch(''); setFilterMonth('All') }}
+              className="text-red-500 hover:underline text-xs">Clear filters</button>
+          )}
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        {invoices.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
-            No invoices yet. Click "+ New Invoice" to create one.
+            {invoices.length === 0 ? 'No invoices yet. Click "+ New Invoice" to create one.' : 'No invoices match your search.'}
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
-              <tr>
-                <th className="text-left px-4 py-3">Invoice No</th>
-                <th className="text-left px-4 py-3">Date</th>
-                <th className="text-left px-4 py-3">Customer</th>
-                <th className="text-right px-4 py-3">Subtotal</th>
-                <th className="text-right px-4 py-3">GST</th>
-                <th className="text-right px-4 py-3">Total</th>
-                <th className="text-center px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map(inv => (
-                <tr key={inv.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-blue-600">
-                    {inv.invoice_no || inv.invoiceNo}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{inv.date}</td>
-                  <td className="px-4 py-3">{inv.customer_name || inv.customerName}</td>
-                  <td className="px-4 py-3 text-right">
-                    {formatCurrency(getField(inv, 'subtotal', 'subtotal'))}
-                  </td>
-                  <td className="px-4 py-3 text-right text-green-600">
-                    {formatCurrency(getField(inv, 'total_gst', 'totalGST'))}
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold">
-                    {formatCurrency(getField(inv, 'grand_total', 'grandTotal'))}
-                  </td>
-                  <td className="px-4 py-3 text-center flex gap-2 justify-center">
-                    <button onClick={() => setPdfInvoice(inv)}
-                      className="text-blue-600 text-xs border border-blue-300 px-2 py-1 rounded hover:bg-blue-50">
-                      PDF
-                    </button>
-                    <button onClick={() => deleteInvoice(inv.id)}
-                      className="text-red-400 text-xs border border-red-200 px-2 py-1 rounded hover:bg-red-50">
-                      Delete
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="text-left px-4 py-3">Invoice No</th>
+                  <th className="text-left px-4 py-3">Date</th>
+                  <th className="text-left px-4 py-3">Customer</th>
+                  <th className="text-right px-4 py-3">Subtotal</th>
+                  <th className="text-right px-4 py-3">GST</th>
+                  <th className="text-right px-4 py-3">Total</th>
+                  <th className="text-center px-4 py-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map(inv => (
+                  <tr key={inv.id} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-blue-600">{inv.invoice_no || inv.invoiceNo}</td>
+                    <td className="px-4 py-3 text-gray-600">{inv.date}</td>
+                    <td className="px-4 py-3">{inv.customer_name || inv.customerName}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(getField(inv, 'subtotal', 'subtotal'))}</td>
+                    <td className="px-4 py-3 text-right text-green-600">{formatCurrency(getField(inv, 'total_gst', 'totalGST'))}</td>
+                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(getField(inv, 'grand_total', 'grandTotal'))}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex gap-2 justify-center">
+                        <button onClick={() => setPdfInvoice(inv)}
+                          className="text-blue-600 text-xs border border-blue-300 px-2 py-1 rounded hover:bg-blue-50">
+                          PDF
+                        </button>
+                        <button onClick={() => deleteInvoice(inv.id)}
+                          className="text-red-400 text-xs border border-red-200 px-2 py-1 rounded hover:bg-red-50">
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {pdfInvoice && (
-        <InvoicePDF
-          invoice={pdfInvoice}
-          profile={profile}
-          onClose={() => setPdfInvoice(null)}
-        />
+        <InvoicePDF invoice={pdfInvoice} profile={profile} onClose={() => setPdfInvoice(null)} />
       )}
     </div>
   )
