@@ -18,6 +18,72 @@ const FILING_DEADLINES = {
   'GSTR-9': '31st December',
 }
 
+function RCMCalculator() {
+  const [rcm, setRcm] = useState({ service: 'GTA', amount: '', rate: 5 })
+
+  const RCM_SERVICES = [
+    { value: 'GTA', label: 'Goods Transport Agency', rate: 5 },
+    { value: 'legal', label: 'Legal Services (Advocate)', rate: 18 },
+    { value: 'director', label: 'Director Services', rate: 18 },
+    { value: 'import', label: 'Import of Services', rate: 18 },
+    { value: 'security', label: 'Security Services', rate: 18 },
+    { value: 'vehicle', label: 'Renting of Motor Vehicle', rate: 5 },
+    { value: 'unregistered', label: 'Purchase from Unregistered Dealer', rate: 18 },
+  ]
+
+  const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(n)
+  const amount = parseFloat(rcm.amount) || 0
+  const gstAmount = (amount * rcm.rate) / 100
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-sm text-gray-600 block mb-1">Service Type</label>
+        <select className="w-full border rounded-lg px-3 py-2 text-sm"
+          value={rcm.service}
+          onChange={e => {
+            const found = RCM_SERVICES.find(s => s.value === e.target.value)
+            setRcm({ ...rcm, service: e.target.value, rate: found ? found.rate : 18 })
+          }}>
+          {RCM_SERVICES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-sm text-gray-600 block mb-1">Invoice Amount (₹)</label>
+        <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm"
+          placeholder="0.00" value={rcm.amount}
+          onChange={e => setRcm({ ...rcm, amount: e.target.value })} />
+      </div>
+      <div>
+        <label className="text-sm text-gray-600 block mb-1">GST Rate (%)</label>
+        <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm"
+          value={rcm.rate}
+          onChange={e => setRcm({ ...rcm, rate: e.target.value })} />
+      </div>
+      {amount > 0 && (
+        <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-2 mt-2">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Invoice Amount</span>
+            <span>{fmt(amount)}</span>
+          </div>
+          <div className="flex justify-between text-red-600">
+            <span>RCM GST Payable (Cash)</span>
+            <span className="font-medium">{fmt(gstAmount)}</span>
+          </div>
+          <div className="flex justify-between text-green-600">
+            <span>ITC Available (Same month)</span>
+            <span className="font-medium">{fmt(gstAmount)}</span>
+          </div>
+          <div className="flex justify-between font-bold border-t pt-2">
+            <span>Net Cost</span>
+            <span className="text-blue-600">{fmt(0)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function GSTReturns({ invoices = [], expenses = [] }) {
   const [activeTab, setActiveTab] = useState('returns')
   const [selectedMonth, setSelectedMonth] = useState('April')
@@ -31,8 +97,6 @@ function GSTReturns({ invoices = [], expenses = [] }) {
     cgstCollected: '', sgstCollected: '', igstCollected: '',
     cgstPaid: '', sgstPaid: '', igstPaid: '',
   })
-
-  // Late fee calculator state
   const [lateFee, setLateFee] = useState({
     returnType: 'GSTR-3B',
     dueDate: '',
@@ -99,31 +163,18 @@ function GSTReturns({ invoices = [], expenses = [] }) {
     else setForm({ totalSales: '', taxableSales: '', cgstCollected: '', sgstCollected: '', igstCollected: '', cgstPaid: '', sgstPaid: '', igstPaid: '' })
   }
 
-  // Late fee calculation
   const calcLateFee = () => {
     if (!lateFee.dueDate || !lateFee.filingDate) return null
     const due = new Date(lateFee.dueDate)
     const filed = new Date(lateFee.filingDate)
     if (filed <= due) return { days: 0, cgst: 0, sgst: 0, total: 0, message: 'Filed on time! No late fee.' }
-
     const days = Math.ceil((filed - due) / (1000 * 60 * 60 * 24))
-
-    let dailyFee = 0
-    if (lateFee.hasTaxLiability === 'yes') {
-      dailyFee = lateFee.taxpayerType === 'regular' ? 50 : 25 // 25+25 or 10+10
-    } else {
-      dailyFee = lateFee.taxpayerType === 'regular' ? 20 : 10 // nil return
-    }
-
-    // Max late fee cap
-    let maxFee = 10000
-    if (lateFee.returnType === 'GSTR-9') maxFee = 25000
-
+    let dailyFee = lateFee.hasTaxLiability === 'yes'
+      ? (lateFee.taxpayerType === 'regular' ? 50 : 25)
+      : (lateFee.taxpayerType === 'regular' ? 20 : 10)
+    const maxFee = lateFee.returnType === 'GSTR-9' ? 25000 : 10000
     const totalFee = Math.min(days * dailyFee, maxFee)
-    const cgstFee = totalFee / 2
-    const sgstFee = totalFee / 2
-
-    return { days, cgst: cgstFee, sgst: sgstFee, total: totalFee, maxFee, capped: (days * dailyFee) > maxFee }
+    return { days, cgst: totalFee / 2, sgst: totalFee / 2, total: totalFee, maxFee, capped: (days * dailyFee) > maxFee }
   }
 
   const lf = calcLateFee()
@@ -327,7 +378,6 @@ function GSTReturns({ invoices = [], expenses = [] }) {
                   <option value="GSTR-9">GSTR-9 (Annual)</option>
                 </select>
               </div>
-
               <div>
                 <label className="text-sm text-gray-600 block mb-1">Taxpayer Type</label>
                 <select className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -337,7 +387,6 @@ function GSTReturns({ invoices = [], expenses = [] }) {
                   <option value="small">Small Taxpayer (Turnover &lt; ₹5 crore)</option>
                 </select>
               </div>
-
               <div>
                 <label className="text-sm text-gray-600 block mb-1">Has Tax Liability?</label>
                 <select className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -347,14 +396,12 @@ function GSTReturns({ invoices = [], expenses = [] }) {
                   <option value="no">No — Nil return</option>
                 </select>
               </div>
-
               <div>
                 <label className="text-sm text-gray-600 block mb-1">Due Date</label>
                 <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
                   value={lateFee.dueDate}
                   onChange={e => setLateFee({ ...lateFee, dueDate: e.target.value })} />
               </div>
-
               <div>
                 <label className="text-sm text-gray-600 block mb-1">Actual Filing Date</label>
                 <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -367,7 +414,7 @@ function GSTReturns({ invoices = [], expenses = [] }) {
           <div className="space-y-4">
             {lf && (
               <div className={`rounded-xl p-6 shadow-sm ${lf.days === 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                <h4 className="font-semibold mb-4 text-gray-700">Late Fee Calculation</h4>
+                <h4 className="font-semibold mb-4 text-gray-700">Late Fee Result</h4>
                 {lf.days === 0 ? (
                   <div className="text-center py-4">
                     <p className="text-4xl mb-2">✅</p>
@@ -406,19 +453,15 @@ function GSTReturns({ invoices = [], expenses = [] }) {
               <div className="space-y-2 text-xs text-gray-600">
                 <div className="flex justify-between py-1 border-b">
                   <span>GSTR-1/3B (with tax liability)</span>
-                  <span className="font-medium">₹50/day (₹25 CGST + ₹25 SGST)</span>
+                  <span className="font-medium">₹50/day</span>
                 </div>
                 <div className="flex justify-between py-1 border-b">
                   <span>GSTR-1/3B (nil return)</span>
-                  <span className="font-medium">₹20/day (₹10 + ₹10)</span>
+                  <span className="font-medium">₹20/day</span>
                 </div>
                 <div className="flex justify-between py-1 border-b">
                   <span>Maximum cap (GSTR-1/3B)</span>
                   <span className="font-medium">₹10,000</span>
-                </div>
-                <div className="flex justify-between py-1 border-b">
-                  <span>Maximum cap (GSTR-9)</span>
-                  <span className="font-medium">0.25% of turnover</span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span>Interest on late tax payment</span>
@@ -440,30 +483,27 @@ function GSTReturns({ invoices = [], expenses = [] }) {
           <div className="bg-white rounded-xl p-6 shadow-sm">
             <h3 className="font-semibold text-gray-700 mb-2 pb-2 border-b">Reverse Charge Mechanism (RCM)</h3>
             <p className="text-xs text-gray-400 mb-4">Under RCM, the buyer pays GST directly to the government instead of the supplier</p>
-
-            <div className="space-y-4">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h4 className="font-medium text-blue-800 mb-3">When does RCM apply?</h4>
-                <div className="space-y-2 text-sm text-gray-700">
-                  {[
-                    { service: 'Goods Transport Agency (GTA)', rate: '5%', note: 'Receiver pays GST' },
-                    { service: 'Legal services by advocate', rate: '18%', note: 'Business recipient pays' },
-                    { service: 'Services by director to company', rate: '18%', note: 'Company pays GST' },
-                    { service: 'Import of services', rate: 'Applicable rate', note: 'Importer pays IGST' },
-                    { service: 'Unregistered dealer purchases', rate: 'Applicable rate', note: 'Registered buyer pays' },
-                    { service: 'Renting of motor vehicle', rate: '5%', note: 'Recipient pays' },
-                    { service: 'Security services', rate: '18%', note: 'Recipient pays' },
-                    { service: 'Services by insurance agent', rate: '18%', note: 'Insurance company pays' },
-                  ].map((item, i) => (
-                    <div key={i} className="flex justify-between items-start py-2 border-b last:border-0">
-                      <div>
-                        <p className="font-medium text-gray-800">{item.service}</p>
-                        <p className="text-xs text-gray-500">{item.note}</p>
-                      </div>
-                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium ml-2 whitespace-nowrap">{item.rate}</span>
+            <div className="bg-blue-50 rounded-lg p-4">
+              <h4 className="font-medium text-blue-800 mb-3">When does RCM apply?</h4>
+              <div className="space-y-2 text-sm text-gray-700">
+                {[
+                  { service: 'Goods Transport Agency (GTA)', rate: '5%', note: 'Receiver pays GST' },
+                  { service: 'Legal services by advocate', rate: '18%', note: 'Business recipient pays' },
+                  { service: 'Services by director to company', rate: '18%', note: 'Company pays GST' },
+                  { service: 'Import of services', rate: 'Applicable rate', note: 'Importer pays IGST' },
+                  { service: 'Unregistered dealer purchases', rate: 'Applicable rate', note: 'Registered buyer pays' },
+                  { service: 'Renting of motor vehicle', rate: '5%', note: 'Recipient pays' },
+                  { service: 'Security services', rate: '18%', note: 'Recipient pays' },
+                  { service: 'Services by insurance agent', rate: '18%', note: 'Insurance company pays' },
+                ].map((item, i) => (
+                  <div key={i} className="flex justify-between items-start py-2 border-b last:border-0">
+                    <div>
+                      <p className="font-medium text-gray-800">{item.service}</p>
+                      <p className="text-xs text-gray-500">{item.note}</p>
                     </div>
-                  ))}
-                </div>
+                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium ml-2 whitespace-nowrap">{item.rate}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -473,95 +513,18 @@ function GSTReturns({ invoices = [], expenses = [] }) {
               <h4 className="font-semibold text-gray-700 mb-3">RCM Calculator</h4>
               <RCMCalculator />
             </div>
-
-            <div className="bg-amber-50 rounded-xl p-4 text-xs text-amber-800">
-              <p className="font-semibold mb-2">RCM Key Rules</p>
+            <div className="bg-amber-50 rounded-xl p-4 text-xs text-amber-800 space-y-1">
+              <p className="font-semibold">RCM Key Rules</p>
               <p>• RCM liability must be paid in cash — ITC cannot be used</p>
               <p>• ITC on RCM paid is available in the same month</p>
               <p>• Self-invoicing required for unregistered purchases</p>
               <p>• RCM applies on interstate purchases from unregistered dealers</p>
               <p>• Must be reported in GSTR-3B (Table 3.1d)</p>
             </div>
-
             <div className="bg-green-50 rounded-xl p-4 text-xs text-green-800">
               <p className="font-semibold mb-2">RCM ITC Benefit</p>
-              <p>Good news — the GST you pay under RCM can be claimed back as Input Tax Credit (ITC) in the same month, so the net cost is often zero for registered businesses!</p>
+              <p>The GST you pay under RCM can be claimed back as Input Tax Credit (ITC) in the same month, so the net cost is often zero for registered businesses!</p>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function RCMCalculator() {
-  const [rcm, setRcm] = useState({
-    service: 'GTA',
-    amount: '',
-    rate: 5,
-  })
-
-  const { formatCurrency } = require('../utils/gstCalculations') || {}
-
-  const RCM_SERVICES = [
-    { value: 'GTA', label: 'Goods Transport Agency', rate: 5 },
-    { value: 'legal', label: 'Legal Services (Advocate)', rate: 18 },
-    { value: 'director', label: 'Director Services', rate: 18 },
-    { value: 'import', label: 'Import of Services', rate: 18 },
-    { value: 'security', label: 'Security Services', rate: 18 },
-    { value: 'vehicle', label: 'Renting of Motor Vehicle', rate: 5 },
-    { value: 'unregistered', label: 'Purchase from Unregistered Dealer', rate: 18 },
-  ]
-
-  const amount = parseFloat(rcm.amount) || 0
-  const gstAmount = (amount * rcm.rate) / 100
-  const igst = gstAmount
-  const cgst = gstAmount / 2
-  const sgst = gstAmount / 2
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <label className="text-sm text-gray-600 block mb-1">Service Type</label>
-        <select className="w-full border rounded-lg px-3 py-2 text-sm"
-          value={rcm.service}
-          onChange={e => {
-            const found = RCM_SERVICES.find(s => s.value === e.target.value)
-            setRcm({ ...rcm, service: e.target.value, rate: found ? found.rate : 18 })
-          }}>
-          {RCM_SERVICES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="text-sm text-gray-600 block mb-1">Invoice Amount (₹)</label>
-        <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm"
-          placeholder="0.00" value={rcm.amount}
-          onChange={e => setRcm({ ...rcm, amount: e.target.value })} />
-      </div>
-      <div>
-        <label className="text-sm text-gray-600 block mb-1">GST Rate (%)</label>
-        <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm"
-          value={rcm.rate}
-          onChange={e => setRcm({ ...rcm, rate: e.target.value })} />
-      </div>
-
-      {amount > 0 && (
-        <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-2 mt-2">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Invoice Amount</span>
-            <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount)}</span>
-          </div>
-          <div className="flex justify-between text-red-600">
-            <span>RCM GST Payable (Cash)</span>
-            <span className="font-medium">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(gstAmount)}</span>
-          </div>
-          <div className="flex justify-between text-green-600">
-            <span>ITC Available (Same month)</span>
-            <span className="font-medium">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(gstAmount)}</span>
-          </div>
-          <div className="flex justify-between font-bold border-t pt-2">
-            <span>Net Cost</span>
-            <span className="text-blue-600">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(0)}</span>
           </div>
         </div>
       )}
