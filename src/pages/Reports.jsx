@@ -1,30 +1,26 @@
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { formatCurrency } from '../utils/gstCalculations'
+import * as XLSX from 'xlsx'
+import { saveAs } from 'file-saver'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
-
 const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
+const MONTH_NAMES = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March']
+const MONTH_MAP = { 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11, 'Jan': 0, 'Feb': 1, 'Mar': 2 }
 
 function Reports({ invoices = [], expenses = [] }) {
   const [activeTab, setActiveTab] = useState('overview')
 
-  // Real calculations from actual data
   const totalSales = invoices.reduce((sum, inv) => sum + (parseFloat(inv.grand_total || inv.grandTotal) || 0), 0)
   const totalGST = invoices.reduce((sum, inv) => sum + (parseFloat(inv.total_gst || inv.totalGST) || 0), 0)
   const totalExpenses = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
   const netProfit = totalSales - totalExpenses
 
-  // Monthly data from real invoices
-  const monthlyData = MONTHS.map(month => {
-    const monthInvoices = invoices.filter(inv => {
-      const d = new Date(inv.date || inv.created_at)
-      return d.toLocaleString('en', { month: 'short' }) === month
-    })
-    const monthExpenses = expenses.filter(exp => {
-      const d = new Date(exp.date || exp.created_at)
-      return d.toLocaleString('en', { month: 'short' }) === month
-    })
+  const monthlyData = MONTHS.map((month, idx) => {
+    const monthNum = MONTH_MAP[month]
+    const monthInvoices = invoices.filter(inv => new Date(inv.date).getMonth() === monthNum)
+    const monthExpenses = expenses.filter(exp => new Date(exp.date).getMonth() === monthNum)
     return {
       month,
       sales: monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.grand_total || inv.grandTotal) || 0), 0),
@@ -33,20 +29,99 @@ function Reports({ invoices = [], expenses = [] }) {
     }
   }).filter(m => m.sales > 0 || m.expenses > 0)
 
-  // Expense breakdown by category
   const expenseByCategory = expenses.reduce((acc, e) => {
     const cat = e.category || 'Other'
     acc[cat] = (acc[cat] || 0) + (parseFloat(e.amount) || 0)
     return acc
   }, {})
-
   const expenseBreakdown = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }))
+
+  // Export functions
+  const exportInvoices = () => {
+    if (invoices.length === 0) { alert('No invoices to export'); return }
+    const data = invoices.map(inv => ({
+      'Invoice No': inv.invoice_no || inv.invoiceNo,
+      'Date': inv.date,
+      'Customer Name': inv.customer_name || inv.customerName,
+      'Customer GSTIN': inv.customer_gstin || inv.customerGSTIN || '',
+      'Subtotal (₹)': parseFloat(inv.subtotal) || 0,
+      'CGST (₹)': parseFloat(inv.total_cgst || inv.totalCGST) || 0,
+      'SGST (₹)': parseFloat(inv.total_sgst || inv.totalSGST) || 0,
+      'IGST (₹)': parseFloat(inv.total_igst || inv.totalIGST) || 0,
+      'Total GST (₹)': parseFloat(inv.total_gst || inv.totalGST) || 0,
+      'Grand Total (₹)': parseFloat(inv.grand_total || inv.grandTotal) || 0,
+      'Type': (inv.is_inter_state || inv.isInterState) ? 'Inter-State' : 'Intra-State',
+    }))
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Invoices')
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    saveAs(new Blob([buf]), `Invoices_FY2025-26.xlsx`)
+  }
+
+  const exportExpenses = () => {
+    if (expenses.length === 0) { alert('No expenses to export'); return }
+    const data = expenses.map(exp => ({
+      'Date': exp.date,
+      'Description': exp.description,
+      'Category': exp.category,
+      'Vendor': exp.vendor || '',
+      'Amount (₹)': parseFloat(exp.amount) || 0,
+      'GST Paid (₹)': parseFloat(exp.gst_paid || exp.gstPaid) || 0,
+    }))
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Expenses')
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    saveAs(new Blob([buf]), `Expenses_FY2025-26.xlsx`)
+  }
+
+  const exportGSTSummary = () => {
+    const monthlyRows = MONTHS.map(month => {
+      const monthNum = MONTH_MAP[month]
+      const monthInvoices = invoices.filter(inv => new Date(inv.date).getMonth() === monthNum)
+      return {
+        'Month': MONTH_NAMES[MONTHS.indexOf(month)],
+        'No. of Invoices': monthInvoices.length,
+        'Total Sales (₹)': monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.grand_total || inv.grandTotal) || 0), 0),
+        'Taxable Amount (₹)': monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.subtotal) || 0), 0),
+        'CGST (₹)': monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_cgst || inv.totalCGST) || 0), 0),
+        'SGST (₹)': monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_sgst || inv.totalSGST) || 0), 0),
+        'IGST (₹)': monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_igst || inv.totalIGST) || 0), 0),
+        'Total GST (₹)': monthInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_gst || inv.totalGST) || 0), 0),
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(monthlyRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'GST Summary')
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    saveAs(new Blob([buf]), `GST_Summary_FY2025-26.xlsx`)
+  }
+
+  const exportPL = () => {
+    const data = [
+      { 'Particulars': 'INCOME', 'Amount (₹)': '' },
+      { 'Particulars': 'Total Sales (excl. GST)', 'Amount (₹)': invoices.reduce((sum, inv) => sum + (parseFloat(inv.subtotal) || 0), 0) },
+      { 'Particulars': '', 'Amount (₹)': '' },
+      { 'Particulars': 'EXPENSES', 'Amount (₹)': '' },
+      ...Object.entries(expenseByCategory).map(([cat, amt]) => ({ 'Particulars': cat, 'Amount (₹)': amt })),
+      { 'Particulars': '', 'Amount (₹)': '' },
+      { 'Particulars': 'Total Expenses', 'Amount (₹)': totalExpenses },
+      { 'Particulars': 'NET PROFIT / LOSS', 'Amount (₹)': invoices.reduce((sum, inv) => sum + (parseFloat(inv.subtotal) || 0), 0) - totalExpenses },
+    ]
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'P&L Statement')
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    saveAs(new Blob([buf]), `PL_Statement_FY2025-26.xlsx`)
+  }
 
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Reports</h2>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Total Revenue', value: formatCurrency(totalSales), color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Total Expenses', value: formatCurrency(totalExpenses), color: 'text-red-600', bg: 'bg-red-50' },
@@ -55,12 +130,44 @@ function Reports({ invoices = [], expenses = [] }) {
         ].map(card => (
           <div key={card.label} className={`${card.bg} rounded-xl p-4`}>
             <p className="text-sm text-gray-500">{card.label}</p>
-            <p className={`text-xl font-bold mt-1 ${card.color}`}>{card.value}</p>
+            <p className={`text-lg font-bold mt-1 ${card.color}`}>{card.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex gap-2 mb-6">
+      {/* Export Section */}
+      <div className="bg-white rounded-xl p-5 shadow-sm mb-6">
+        <h3 className="font-semibold text-gray-700 mb-4">📥 Export to Excel</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <button onClick={exportInvoices}
+            className="flex flex-col items-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
+            <span className="text-2xl mb-1">🧾</span>
+            <span className="text-sm font-medium text-blue-700">All Invoices</span>
+            <span className="text-xs text-gray-500 mt-1">{invoices.length} records</span>
+          </button>
+          <button onClick={exportExpenses}
+            className="flex flex-col items-center p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-colors">
+            <span className="text-2xl mb-1">💰</span>
+            <span className="text-sm font-medium text-red-700">All Expenses</span>
+            <span className="text-xs text-gray-500 mt-1">{expenses.length} records</span>
+          </button>
+          <button onClick={exportGSTSummary}
+            className="flex flex-col items-center p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+            <span className="text-2xl mb-1">📊</span>
+            <span className="text-sm font-medium text-green-700">GST Summary</span>
+            <span className="text-xs text-gray-500 mt-1">Monthly GSTR data</span>
+          </button>
+          <button onClick={exportPL}
+            className="flex flex-col items-center p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+            <span className="text-2xl mb-1">📈</span>
+            <span className="text-sm font-medium text-purple-700">P&L Statement</span>
+            <span className="text-xs text-gray-500 mt-1">For CA / ITR filing</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 mb-6">
         {['overview', 'gst', 'expenses'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 rounded-lg text-sm font-medium capitalize ${
@@ -77,8 +184,7 @@ function Reports({ invoices = [], expenses = [] }) {
           {monthlyData.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <p className="text-4xl mb-3">📊</p>
-              <p>Abhi koi data nahi hai.</p>
-              <p className="text-sm mt-1">Invoices aur Expenses add karo — chart yahan dikhega.</p>
+              <p>No data yet. Add invoices and expenses to see charts.</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -101,8 +207,7 @@ function Reports({ invoices = [], expenses = [] }) {
           {monthlyData.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <p className="text-4xl mb-3">📋</p>
-              <p>Koi invoice nahi hai abhi.</p>
-              <p className="text-sm mt-1">Invoice banao — GST summary yahan dikhegi.</p>
+              <p>No invoices yet. Create invoices to see GST summary.</p>
             </div>
           ) : (
             <>
@@ -130,13 +235,13 @@ function Reports({ invoices = [], expenses = [] }) {
       )}
 
       {activeTab === 'expenses' && (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl p-6 shadow-sm">
             <h3 className="font-semibold text-gray-700 mb-4">Expense Breakdown</h3>
             {expenseBreakdown.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <p className="text-4xl mb-3">💰</p>
-                <p>Koi expense nahi hai abhi.</p>
+                <p>No expenses yet.</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
@@ -156,7 +261,7 @@ function Reports({ invoices = [], expenses = [] }) {
             <h3 className="font-semibold text-gray-700 mb-4">Category wise</h3>
             {expenseBreakdown.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
-                <p className="text-sm">Expenses add karo yahan dikhega.</p>
+                <p className="text-sm">Add expenses to see breakdown.</p>
               </div>
             ) : (
               <div className="space-y-3">
