@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import Sidebar from './components/shared/Sidebar'
@@ -24,34 +24,23 @@ function App() {
       setUser(session?.user ?? null)
       setLoading(false)
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
-    if (user) {
-      loadInvoices()
-      loadExpenses()
-    }
+    if (user) { loadInvoices(); loadExpenses() }
   }, [user])
 
   const loadInvoices = async () => {
-    const { data } = await supabase
-      .from('invoices')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('invoices').select('*').order('created_at', { ascending: false })
     if (data) setInvoices(data)
   }
 
   const loadExpenses = async () => {
-    const { data } = await supabase
-      .from('expenses')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('expenses').select('*').order('created_at', { ascending: false })
     if (data) setExpenses(data)
   }
 
@@ -69,15 +58,13 @@ function App() {
     )
   }
 
-  if (!user) {
-    return <Auth />
-  }
+  if (!user) return <Auth />
 
   return (
     <BrowserRouter>
       <div className="flex h-screen bg-gray-100">
         <Sidebar onLogout={handleLogout} user={user} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pt-16 md:pt-6">
           <Routes>
             <Route path="/" element={<Dashboard invoices={invoices} expenses={expenses} />} />
             <Route path="/invoices" element={<Invoices invoices={invoices} setInvoices={setInvoices} userId={user.id} />} />
