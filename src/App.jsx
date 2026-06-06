@@ -13,11 +13,27 @@ import TDSTracker from './pages/TDSTracker'
 import HSNLookup from './pages/HSNLookup'
 import Auth from './pages/Auth'
 
+export const ThemeContext = React.createContext()
+
+import React from 'react'
+
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('darkMode') === 'true'
+  })
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    localStorage.setItem('darkMode', darkMode)
+  }, [darkMode])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -52,33 +68,35 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-blue-900 flex items-center justify-center">
+      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-blue-900'} flex items-center justify-center`}>
         <div className="text-white text-xl">Loading...</div>
       </div>
     )
   }
 
-  if (!user) return <Auth />
+  if (!user) return <Auth darkMode={darkMode} />
 
   return (
-    <BrowserRouter>
-      <div className="flex h-screen bg-gray-100">
-        <Sidebar onLogout={handleLogout} user={user} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pt-16 md:pt-6">
-          <Routes>
-            <Route path="/" element={<Dashboard invoices={invoices} expenses={expenses} />} />
-            <Route path="/invoices" element={<Invoices invoices={invoices} setInvoices={setInvoices} userId={user.id} />} />
-            <Route path="/expenses" element={<Expenses expenses={expenses} setExpenses={setExpenses} userId={user.id} />} />
-            <Route path="/gst" element={<GSTReturns invoices={invoices} expenses={expenses} />} />
-            <Route path="/tax" element={<IncomeTax />} />
-            <Route path="/tds" element={<TDSTracker userId={user.id} />} />
-            <Route path="/hsn" element={<HSNLookup />} />
-            <Route path="/reports" element={<Reports invoices={invoices} expenses={expenses} />} />
-            <Route path="/settings" element={<Settings userId={user.id} />} />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+    <ThemeContext.Provider value={{ darkMode, setDarkMode }}>
+      <BrowserRouter>
+        <div className={`flex h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+          <Sidebar onLogout={handleLogout} user={user} darkMode={darkMode} setDarkMode={setDarkMode} />
+          <main className={`flex-1 overflow-y-auto p-4 md:p-6 pt-16 md:pt-6 ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+            <Routes>
+              <Route path="/" element={<Dashboard invoices={invoices} expenses={expenses} darkMode={darkMode} />} />
+              <Route path="/invoices" element={<Invoices invoices={invoices} setInvoices={setInvoices} userId={user.id} darkMode={darkMode} />} />
+              <Route path="/expenses" element={<Expenses expenses={expenses} setExpenses={setExpenses} userId={user.id} darkMode={darkMode} />} />
+              <Route path="/gst" element={<GSTReturns invoices={invoices} expenses={expenses} darkMode={darkMode} />} />
+              <Route path="/tax" element={<IncomeTax darkMode={darkMode} />} />
+              <Route path="/tds" element={<TDSTracker userId={user.id} darkMode={darkMode} />} />
+              <Route path="/hsn" element={<HSNLookup darkMode={darkMode} />} />
+              <Route path="/reports" element={<Reports invoices={invoices} expenses={expenses} darkMode={darkMode} />} />
+              <Route path="/settings" element={<Settings userId={user.id} darkMode={darkMode} />} />
+            </Routes>
+          </main>
+        </div>
+      </BrowserRouter>
+    </ThemeContext.Provider>
   )
 }
 

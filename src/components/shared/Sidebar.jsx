@@ -13,7 +13,7 @@ const links = [
   { path: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 
-function Sidebar({ onLogout, user }) {
+function Sidebar({ onLogout, user, darkMode, setDarkMode }) {
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -34,17 +34,41 @@ function Sidebar({ onLogout, user }) {
     </>
   )
 
+  const SidebarBottom = () => (
+    <div className="p-4 border-t border-blue-700">
+      <p className="text-blue-300 text-xs mb-2 truncate">{user?.email}</p>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-blue-300 text-xs">Dark Mode</span>
+        <button
+          onClick={() => setDarkMode(!darkMode)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            darkMode ? 'bg-blue-500' : 'bg-blue-800'
+          }`}>
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+            darkMode ? 'translate-x-6' : 'translate-x-1'
+          }`} />
+        </button>
+      </div>
+      <button onClick={onLogout}
+        className="w-full bg-blue-800 hover:bg-red-700 text-white text-sm py-2 rounded-lg transition-colors">
+        Logout
+      </button>
+    </div>
+  )
+
   return (
     <>
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-blue-900 text-white px-4 py-3 flex items-center justify-between shadow-lg">
-        <div>
-          <h1 className="text-lg font-bold">GST Finance</h1>
+        <h1 className="text-lg font-bold">GST Finance</h1>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setDarkMode(!darkMode)} className="text-xl">
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-white text-2xl">
+            {mobileOpen ? '✕' : '☰'}
+          </button>
         </div>
-        <button onClick={() => setMobileOpen(!mobileOpen)}
-          className="text-white text-2xl focus:outline-none">
-          {mobileOpen ? '✕' : '☰'}
-        </button>
       </div>
 
       {/* Mobile overlay */}
@@ -61,16 +85,10 @@ function Sidebar({ onLogout, user }) {
           <h1 className="text-xl font-bold">GST Finance</h1>
           <p className="text-blue-300 text-sm mt-1">Business Manager</p>
         </div>
-        <nav className="flex-1 p-4 overflow-y-auto">
+        <nav className="flex-1 p-4 overflow-y-auto h-[calc(100%-200px)]">
           <NavLinks />
         </nav>
-        <div className="p-4 border-t border-blue-700">
-          <p className="text-blue-300 text-xs mb-2 truncate">{user?.email}</p>
-          <button onClick={onLogout}
-            className="w-full bg-blue-800 hover:bg-red-700 text-white text-sm py-2 rounded-lg">
-            Logout
-          </button>
-        </div>
+        <SidebarBottom />
       </div>
 
       {/* Desktop sidebar */}
@@ -82,13 +100,7 @@ function Sidebar({ onLogout, user }) {
         <nav className="flex-1 p-4 overflow-y-auto">
           <NavLinks />
         </nav>
-        <div className="p-4 border-t border-blue-700">
-          <p className="text-blue-300 text-xs mb-2 truncate">{user?.email}</p>
-          <button onClick={onLogout}
-            className="w-full bg-blue-800 hover:bg-red-700 text-white text-sm py-2 rounded-lg transition-colors">
-            Logout
-          </button>
-        </div>
+        <SidebarBottom />
       </div>
     </>
   )
